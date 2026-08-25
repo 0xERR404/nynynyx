@@ -287,15 +287,30 @@ CADDY_HASH=$(docker run --rm caddy:2-alpine caddy hash-password --plaintext "$CA
 # упереться при частых передеплоях/отладке. staging-окружение лимитов почти
 # не имеет, но браузер будет показывать "небезопасное соединение" (сертификат
 # технически ненастоящий, само шифрование при этом работает).
-ACME_CA_LINE=""
+USE_STAGING_TLS=false
 read -rp "Частые передеплои/отладка — использовать staging-сертификат вместо настоящего? (y/N): " USE_STAGING < /dev/tty
-if [[ "$USE_STAGING" =~ ^[Yy]$ ]]; then
-    ACME_CA_LINE="tls { ca https://acme-staging-v02.api.letsencrypt.org/directory }"
+[[ "$USE_STAGING" =~ ^[Yy]$ ]] && USE_STAGING_TLS=true
+
+# Caddyfile — НЕ CSS/JS: каждая директива внутри { } обязана быть на своей
+# строке, однострочный "tls { ca ... }" — синтаксическая ошибка Caddy
+# ("Unexpected next token after '{' on same line"). Через переменную с
+# переносами строк это тоже не вставить надёжно — sed на "-e" с встроенным
+# переносом строки падает "unterminated `s' command". Поэтому многострочный
+# блок кладём в отдельный временный файл и подставляем через sed-команду
+# r (read) + d (удалить строку-плейсхолдер) — единственный надёжный способ.
+ACME_BLOCK=$(mktemp)
+if [ "$USE_STAGING_TLS" = true ]; then
+    printf '%s\n' 'tls {' '        ca https://acme-staging-v02.api.letsencrypt.org/directory' '    }' > "$ACME_BLOCK"
     echo "-> Staging-сертификат: браузер будет ругаться на безопасность, зато без лимитов на переиздание."
+else
+    : > "$ACME_BLOCK"  # пустой — строка-плейсхолдер просто удалится
 fi
 
 [ -f Caddyfile.template ] || { echo "Caddyfile.template не найден."; exit 1; }
-sed -e "s#__DOMAIN__#${DOMAIN}#" -e "s#__CADDY_LOGIN__#${CADDY_LOGIN}#" -e "s#__CADDY_HASH__#${CADDY_HASH}#" -e "s#__ACME_CA_LINE__#${ACME_CA_LINE}#" Caddyfile.template > Caddyfile
+sed -e "s#__DOMAIN__#${DOMAIN}#" -e "s#__CADDY_LOGIN__#${CADDY_LOGIN}#" -e "s#__CADDY_HASH__#${CADDY_HASH}#" \
+    -e "/__ACME_CA_LINE__/r ${ACME_BLOCK}" -e "/__ACME_CA_LINE__/d" \
+    Caddyfile.template > Caddyfile
+rm -f "$ACME_BLOCK"
 chown "$SYSTEM_USER:$SYSTEM_USER" Caddyfile
 echo "-> Caddyfile готов."
 echo
