@@ -242,8 +242,20 @@ done
 prompt_matching_password "Пароль: " CADDY_PASSWORD
 
 CADDY_HASH=$(docker run --rm caddy:2-alpine caddy hash-password --plaintext "$CADDY_PASSWORD")
+
+# Let's Encrypt: не больше 5 сертификатов на домен за 7 дней в проде — легко
+# упереться при частых передеплоях/отладке. staging-окружение лимитов почти
+# не имеет, но браузер будет показывать "небезопасное соединение" (сертификат
+# технически ненастоящий, само шифрование при этом работает).
+ACME_CA_LINE=""
+read -rp "Частые передеплои/отладка — использовать staging-сертификат вместо настоящего? (y/N): " USE_STAGING < /dev/tty
+if [[ "$USE_STAGING" =~ ^[Yy]$ ]]; then
+    ACME_CA_LINE="tls { ca https://acme-staging-v02.api.letsencrypt.org/directory }"
+    echo "-> Staging-сертификат: браузер будет ругаться на безопасность, зато без лимитов на переиздание."
+fi
+
 [ -f Caddyfile.template ] || { echo "Caddyfile.template не найден."; exit 1; }
-sed -e "s/__DOMAIN__/${DOMAIN}/" -e "s/__CADDY_LOGIN__/${CADDY_LOGIN}/" -e "s/__CADDY_HASH__/${CADDY_HASH//\//\\/}/" Caddyfile.template > Caddyfile
+sed -e "s#__DOMAIN__#${DOMAIN}#" -e "s#__CADDY_LOGIN__#${CADDY_LOGIN}#" -e "s#__CADDY_HASH__#${CADDY_HASH}#" -e "s#__ACME_CA_LINE__#${ACME_CA_LINE}#" Caddyfile.template > Caddyfile
 chown "$SYSTEM_USER:$SYSTEM_USER" Caddyfile
 echo "-> Caddyfile готов."
 echo

@@ -44,22 +44,13 @@
         </div>
     </div>
 
-    <div class="section-title" id="filesTitle" style="display:none;">⬡ файлы</div>
-    <div class="files-list" id="filesList"></div>
-
     <!-- Карточки — базовые данные модулей (имя/описание/версия) прямо из
-         manifest.json через /api/modules. Рендерит хаб сам, безопасно: это
-         просто JSON-данные, не исполняемый код модуля, iframe не нужен. -->
+         manifest.json через /api/modules. Клик по карточке открывает модалку
+         с её страницей (см. moduleModal ниже). Никакого отдельного холста
+         снизу нет — все модули, включая любой "дашборд", живут как карточки. -->
     <div class="section-title">модули</div>
     <div class="grid" id="modulesGrid">
         <div class="empty-hint">Модулей пока нет — появятся здесь автоматически, как только появятся в modules/.</div>
-    </div>
-
-    <!-- НИЗ — её холст целиком. modules/dashboard/ — модуль, который она же и
-         пишет; хаб просто встраивает его как iframe на всю нижнюю часть.
-         Что там внутри (сетка, карточки, что угодно) — полностью её решение. -->
-    <div id="dashboardArea">
-        <div class="empty-hint">Дашборд модулей ещё не создан — попроси Никс собрать modules/dashboard/.</div>
     </div>
 
     <footer><span id="footer-brand">NEXUS404</span> © <span id="year">2026</span> · <a href="/api/nyx/ui" style="color:var(--muted);">аварийный чат</a></footer>

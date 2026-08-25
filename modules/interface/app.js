@@ -43,38 +43,6 @@ function renderAttachments() {
     ).join('');
 }
 
-async function loadOutputFiles() {
-    try {
-        const res = await fetch(`${API_URL}/files`);
-        const data = await res.json();
-        const filesTitle = document.getElementById('filesTitle');
-        const filesList = document.getElementById('filesList');
-        const outbox = data.outbox || [];
-        if (outbox.length === 0) {
-            filesTitle.style.display = 'none';
-            filesList.innerHTML = '';
-            return;
-        }
-        filesTitle.style.display = '';
-        filesList.innerHTML = outbox.map(({ name, kind }) => {
-            const mediaUrl = `${API_URL}/media/${encodeURIComponent(name)}`;
-            const downloadUrl = `${API_URL}/download/${encodeURIComponent(name)}`;
-            if (kind === 'image') {
-                return `<div class="file-card media"><img src="${mediaUrl}" alt="${name}" loading="lazy">
-                    <a href="${downloadUrl}" download>⬇ ${name}</a></div>`;
-            }
-            if (kind === 'audio') {
-                return `<div class="file-card media"><audio controls src="${mediaUrl}"></audio>
-                    <a href="${downloadUrl}" download>⬇ ${name}</a></div>`;
-            }
-            return `<a class="file-card" href="${downloadUrl}" download>⬇ ${name}</a>`;
-        }).join('');
-    } catch (e) {
-        // не критично — панель файлов просто не обновится в этот раз
-    }
-}
-loadOutputFiles();
-
 // ============================================================
 // ЧАТ
 // ============================================================
@@ -190,7 +158,6 @@ async function sendMessage() {
         if (isThreadCommand) {
             await loadHistory();
         }
-        loadOutputFiles();
     } catch (error) {
         hideTyping();
         addMessage(`⚠️ Ошибка: ${error.message}. Проверь, что сервер запущен.`, 'nyx');
@@ -338,36 +305,19 @@ moduleModal.addEventListener('click', (e) => { if (e.target === moduleModal) clo
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModuleModal(); });
 
 // ============================================================
-// НИЗ СТРАНИЦЫ — modules/dashboard/, полностью её холст. Хаб только
-// проверяет, что модуль есть и включён, и подставляет iframe на всю область.
-// Что внутри — решает она сама, мы туда не лезем и не задаём разметку.
+// Опрос /api/modules — обновляет карточки. "dashboard" (если она такой
+// создаст) — обычный модуль, никакого спецповедения снизу страницы нет:
+// появится карточкой, клик по ней откроет модалку так же, как у всех.
 // ============================================================
-const dashboardArea = document.getElementById('dashboardArea');
-
-// Один запрос к /api/modules обслуживает и карточки, и проверку dashboard —
-// не дублируем сетевой вызов дважды каждые 20 секунд.
 async function loadModulesData() {
-    let modules = [];
     try {
         const response = await fetch('/api/modules');
         const data = await response.json();
-        modules = (data.modules || []).filter(m => !m.builtin);
+        const modules = (data.modules || []).filter(m => !m.builtin);
+        renderModuleCards(modules);
     } catch (e) {
         modulesGrid.innerHTML = '<div class="empty-hint">Не удалось загрузить список модулей.</div>';
-        return;
     }
-
-    renderModuleCards(modules);
-
-    const dash = modules.find(m => m.folder === 'dashboard' && m.enabled);
-    if (!dash) {
-        dashboardArea.innerHTML = '<div class="empty-hint">Дашборд модулей ещё не создан — попроси Никс собрать modules/dashboard/.</div>';
-        return;
-    }
-    // Не пересоздаём iframe, если он уже стоит — иначе он бы перезагружался
-    // каждые 20 секунд вместе с опросом.
-    if (dashboardArea.querySelector('iframe.dashboard-frame')) return;
-    dashboardArea.innerHTML = '<iframe class="dashboard-frame" src="/api/dashboard/" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>';
 }
 setInterval(loadModulesData, 20000);
 loadModulesData();
