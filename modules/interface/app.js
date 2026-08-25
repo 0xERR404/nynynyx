@@ -295,8 +295,8 @@ function renderModuleCards(modules) {
         modulesGrid.innerHTML = '<div class="empty-hint">Модулей пока нет — появятся здесь автоматически, как только появятся в modules/.</div>';
         return;
     }
-    modulesGrid.innerHTML = modules.map(mod => `
-        <a class="card" href="/api/${mod.folder}" target="_blank" rel="noopener">
+    modulesGrid.innerHTML = modules.map((mod, i) => `
+        <div class="card" data-index="${i}">
             <div class="top">
                 <div class="name">${mod.name}</div>
                 <div class="desc">${mod.description || mod.folder}</div>
@@ -305,9 +305,37 @@ function renderModuleCards(modules) {
                 <span class="version">v${mod.version || '0.0.0'}</span>
                 <span class="enabled-dot ${mod.enabled ? 'on' : 'off'}" title="${mod.enabled ? 'включён' : 'выключен'}"></span>
             </div>
-        </a>
+        </div>
     `).join('');
+
+    modulesGrid.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', () => openModuleModal(modules[Number(card.dataset.index)]));
+    });
 }
+
+// ============================================================
+// МОДАЛКА МОДУЛЯ — открывается ПОВЕРХ страницы по клику на карточку,
+// показывает саму страницу модуля (/api/<имя>/) в iframe, не уводит
+// со страницы хаба никуда.
+// ============================================================
+const moduleModal = document.getElementById('moduleModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalFrame = document.getElementById('modalFrame');
+
+function openModuleModal(mod) {
+    modalTitle.textContent = mod.name;
+    modalFrame.src = `/api/${mod.folder}/`;
+    moduleModal.classList.add('open');
+}
+
+function closeModuleModal() {
+    moduleModal.classList.remove('open');
+    modalFrame.src = 'about:blank';  // не держим модуль загруженным в фоне, пока окно закрыто
+}
+
+document.getElementById('modalClose').addEventListener('click', closeModuleModal);
+moduleModal.addEventListener('click', (e) => { if (e.target === moduleModal) closeModuleModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModuleModal(); });
 
 // ============================================================
 // НИЗ СТРАНИЦЫ — modules/dashboard/, полностью её холст. Хаб только
