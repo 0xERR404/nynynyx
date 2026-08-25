@@ -146,6 +146,14 @@ if [ -n "$ADMIN_USER" ]; then
         SSH_PORT="${SSH_PORT:-22}"
     done
 
+    # Бэкап — если новый порт не поднимется, откатываемся к ТОЧНО рабочему
+    # состоянию, а не оставляем sshd в промежуточном виде.
+    SSHD_BACKUP="/etc/ssh/sshd_config.pre-nexus404.bak"
+    [ -f "$SSHD_BACKUP" ] || cp /etc/ssh/sshd_config "$SSHD_BACKUP"
+    SOCKET_OVERRIDE="/etc/systemd/system/ssh.socket.d/override.conf"
+    SOCKET_OVERRIDE_EXISTED=false
+    [ -f "$SOCKET_OVERRIDE" ] && SOCKET_OVERRIDE_EXISTED=true
+
     set_sshd_option() {
         local key="$1" value="$2"
         if grep -qE "^\s*#?\s*${key}\b" /etc/ssh/sshd_config; then
@@ -154,8 +162,11 @@ if [ -n "$ADMIN_USER" ]; then
             echo "${key} ${value}" >> /etc/ssh/sshd_config
         fi
     }
+
+    # Сначала ТОЛЬКО порт — PermitRootLogin трогаем позже, только если новый
+    # порт реально заработает. Иначе можно заблокировать root ДО того, как
+    # известно, что вообще есть куда заходить взамен.
     set_sshd_option "Port" "$SSH_PORT"
-    set_sshd_option "PermitRootLogin" "no"
 
     # На части современных систем (Ubuntu 22.04+) SSH запускается через
     # systemd socket activation — реальный порт слушает ssh.socket, а не
@@ -165,7 +176,7 @@ if [ -n "$ADMIN_USER" ]; then
     if systemctl list-unit-files ssh.socket &> /dev/null && systemctl is-enabled ssh.socket &> /dev/null; then
         SSH_SOCKET_ACTIVE=true
         mkdir -p /etc/systemd/system/ssh.socket.d
-        cat > /etc/systemd/system/ssh.socket.d/override.conf << EOF
+        cat > "$SOCKET_OVERRIDE" << EOF
 [Socket]
 ListenStream=
 ListenStream=${SSH_PORT}
@@ -179,33 +190,62 @@ EOF
         ufw allow "${SSH_PORT}/tcp"
     fi
 
-    if [ "$SSH_SOCKET_ACTIVE" = true ]; then
-        systemctl restart ssh.socket
-    fi
-    systemctl restart ssh
-
-    echo "-> Проверяю, что sshd реально слушает порт ${SSH_PORT}..."
-    PORT_OK=false
-    for _ in 1 2 3 4 5; do
-        if ss -tln | grep -q ":${SSH_PORT} "; then
-            PORT_OK=true
-            break
+    # Проверка синтаксиса ДО перезапуска демона — битый конфиг не должен
+    # вообще применяться, лучше сразу откатиться, чем рестартовать с ошибкой.
+    if ! sshd -t 2>/tmp/sshd_test_err; then
+        echo "!! sshd_config невалиден после правки — ОТКАТЫВАЮ, не перезапускаю демон:"
+        cat /tmp/sshd_test_err
+        cp "$SSHD_BACKUP" /etc/ssh/sshd_config
+        PORT_OK=false
+    else
+        if [ "$SSH_SOCKET_ACTIVE" = true ]; then
+            systemctl restart ssh.socket
         fi
-        sleep 1
-    done
+        systemctl restart ssh
+
+        echo "-> Проверяю, что sshd реально слушает порт ${SSH_PORT}..."
+        PORT_OK=false
+        for _ in 1 2 3 4 5; do
+            if ss -tln | grep -q ":${SSH_PORT} "; then
+                PORT_OK=true
+                break
+            fi
+            sleep 1
+        done
+    fi
 
     if [ "$PORT_OK" = true ]; then
-        echo "-> Порт ${SSH_PORT} подтверждён (sshd слушает)."
-        if [ "$UFW_ACTIVE" = true ] && [ "$SSH_PORT" != "22" ]; then
-            ufw delete allow 22/tcp 2>/dev/null || true
-            echo "-> ufw: старый порт 22 закрыт."
+        echo "-> Порт ${SSH_PORT} подтверждён (sshd слушает). Теперь блокирую root."
+        set_sshd_option "PermitRootLogin" "no"
+        if ! sshd -t 2>/tmp/sshd_test_err; then
+            echo "!! Блокировка root сделала конфиг невалидным (странно, но бывает) — отменяю только эту правку:"
+            cat /tmp/sshd_test_err
+            cp "$SSHD_BACKUP" /etc/ssh/sshd_config
+            set_sshd_option "Port" "$SSH_PORT"  # порт возвращаем, root оставляем разрешённым
+            sshd -t && systemctl restart ssh
+            echo "root НЕ заблокирован (безопасный отказ), порт SSH: ${SSH_PORT}."
+        else
+            systemctl restart ssh
+            if [ "$UFW_ACTIVE" = true ] && [ "$SSH_PORT" != "22" ]; then
+                ufw delete allow 22/tcp 2>/dev/null || true
+                echo "-> ufw: старый порт 22 закрыт."
+            fi
+            echo "root заблокирован, порт SSH: ${SSH_PORT}."
         fi
-        echo "root заблокирован, порт SSH: ${SSH_PORT}."
     else
-        echo "!! Не вижу sshd на порту ${SSH_PORT} — root/22 НЕ трогаю, проверь вручную:"
+        echo "!! Не вижу sshd на порту ${SSH_PORT} — ОТКАТЫВАЮ изменения, root НЕ блокирую."
+        cp "$SSHD_BACKUP" /etc/ssh/sshd_config
+        if [ "$SSH_SOCKET_ACTIVE" = true ] && [ "$SOCKET_OVERRIDE_EXISTED" = false ]; then
+            rm -f "$SOCKET_OVERRIDE"
+            systemctl daemon-reload
+            systemctl restart ssh.socket
+        fi
+        systemctl restart ssh
+        echo "-> Откат выполнен: SSH работает как до запуска скрипта (порт 22, root разрешён)."
+        echo "   Причина сбоя — проверь вручную и попробуй сменить порт снова отдельно:"
         echo "     systemctl status ssh.socket ssh.service"
-        echo "     ss -tln | grep ssh"
         echo "     journalctl -u ssh -u ssh.socket -n 30"
+        SSH_PORT=22
     fi
     echo "-> Проверь доступ В НОВОМ ОКНЕ ТЕРМИНАЛА, не закрывая текущую сессию:"
     echo "     ssh -p ${SSH_PORT} ${ADMIN_USER}@<ip>"
