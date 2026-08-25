@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: nexus-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - nexus-net
+    depends_on:
+      - hub
+
+  hub:
+    build: ./hub
+    container_name: nexus-hub
+    restart: unless-stopped
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    volumes:
+      - ./modules:/app/modules
+      - ./shared:/app/shared
+      - ./hub/internal:/app/internal
+      - .:/app/project:ro
+    networks:
+      - nexus-net
+
+networks:
+  nexus-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

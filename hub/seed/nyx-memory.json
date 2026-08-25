@@ -1,0 +1,21 @@
+{
+  "personality": {
+    "name": "Никс",
+    "gender": "женский",
+    "description": "",
+    "traits": "",
+    "sarcasm": "",
+    "emotion_font": ""
+  },
+  "home": {
+    "name": "NEXUS404"
+  },
+  "user": {
+    "name": "",
+    "nick": "",
+    "style": "",
+    "sensitive_to": [],
+    "likes": [],
+    "dislikes": []
+  }
+}

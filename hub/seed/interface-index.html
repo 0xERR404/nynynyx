@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NEXUS404</title>
+<meta name="theme-color" content="#7c3aed">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="glow"></div>
+<div class="wrap">
+
+    <div class="header-row">
+        <div class="prompt"><span class="user">0xERR404</span><span class="at">@</span><span class="host" id="domain">localhost</span><span class="colon">:</span><span class="path">~$</span> <span class="cmd">./nexus404</span><span class="cursor"></span></div>
+        <div class="status-indicator"><span class="dot" id="status-dot"></span><span id="status-text-inline">жива</span></div>
+    </div>
+
+    <div class="title-block">
+        <div class="brand"><span class="highlight">NEXUS404</span></div>
+        <span class="sub" id="topic-label">никс</span>
+    </div>
+
+    <!-- ВЕРХ — чат. Защищённая оболочка, живёт всегда, Никс её не редактирует. -->
+    <div class="chat-container">
+        <div class="messages" id="messages">
+            <div class="message nyx greeting">
+                Привет. Я здесь. Дом ждёт тебя.
+                <span class="timestamp">только что</span>
+            </div>
+        </div>
+
+        <div class="attachments" id="attachments"></div>
+
+        <div class="input-area">
+            <button id="attachBtn" title="Прикрепить файл">📎</button>
+            <input type="file" id="fileInput" multiple hidden>
+            <textarea id="input" rows="1" placeholder="Напиши что-нибудь... или /тема, /темы, /сводка, /статус" autofocus></textarea>
+            <button id="send">→</button>
+        </div>
+    </div>
+
+    <div class="section-title" id="filesTitle" style="display:none;">⬡ файлы</div>
+    <div class="files-list" id="filesList"></div>
+
+    <!-- Карточки — базовые данные модулей (имя/описание/версия) прямо из
+         manifest.json через /api/modules. Рендерит хаб сам, безопасно: это
+         просто JSON-данные, не исполняемый код модуля, iframe не нужен. -->
+    <div class="section-title">модули</div>
+    <div class="grid" id="modulesGrid">
+        <div class="empty-hint">Модулей пока нет — появятся здесь автоматически, как только появятся в modules/.</div>
+    </div>
+
+    <!-- НИЗ — её холст целиком. modules/dashboard/ — модуль, который она же и
+         пишет; хаб просто встраивает его как iframe на всю нижнюю часть.
+         Что там внутри (сетка, карточки, что угодно) — полностью её решение. -->
+    <div id="dashboardArea">
+        <div class="empty-hint">Дашборд модулей ещё не создан — попроси Никс собрать modules/dashboard/.</div>
+    </div>
+
+    <footer><span id="footer-brand">NEXUS404</span> © <span id="year">2026</span> · <a href="/api/nyx/ui" style="color:var(--muted);">аварийный чат</a></footer>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

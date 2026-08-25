@@ -1,0 +1,7 @@
+__DOMAIN__ {
+    basic_auth {
+        __CADDY_LOGIN__ __CADDY_HASH__
+    }
+
+    reverse_proxy hub:8000
+}

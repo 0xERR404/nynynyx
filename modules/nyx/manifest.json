@@ -1,0 +1,7 @@
+{
+  "name": "Nyx",
+  "version": "1.0.0",
+  "enabled": true,
+  "status": "active",
+  "description": "Никс — чат, память, работа с DeepSeek API. Сердце хаба. Встроенный защищённый модуль, редактируется только через git"
+}
